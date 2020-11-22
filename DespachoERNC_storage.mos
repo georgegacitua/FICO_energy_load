@@ -1,0 +1,148 @@
+model DespachoERNC_storage
+  options noimplicit
+  uses "mmxprs", "mmsheet"
+  ! uses "mminsight" ! uncomment this line for an Xpress Insight model
+
+  declarations
+    !variables
+    Pc, Pg, Po, Fl : array(1..24) of mpvar
+    Ph, vol, vert : array(1..24) of mpvar
+    Ps, Pe : array(1..24) of mpvar
+    Pstd, Pstc, Pste : array(1..24) of mpvar !storage
+
+    Dem1, Dem2, afl : array(1..24) of real
+    PrSol, PrEol : array(1..24) of real
+
+    Objective : linctr
+
+    !restricciones
+    balance1 : array(1..24) of linctr
+    balance2 : array(1..24) of linctr
+    Fmaxlim : array(1..24) of linctr
+    Pmaxlim_c : array(1..24) of linctr !carbon
+    Pmaxlim_g : array(1..24) of linctr !gas
+    Pmaxlim_o : array(1..24) of linctr !diesel (oil)
+    Pmaxlim_h : array(1..24) of linctr !hidro
+    Pmaxlim_s : array(1..24) of linctr !sol
+    Pmaxlim_e : array(1..24) of linctr !eol
+    inventario : array(1..24) of linctr
+    maxi_vol : array(1..24) of linctr
+    SoC : array(1..24) of linctr !Estado de carga
+    SoCmax : array(1..24) of linctr !Cuanto puedo almacenar
+    Pmaxlim_st : array(1..24) of linctr
+    Pminlim_st : array(1..24) of linctr !se comporta como carga
+
+    !Resultados
+    Pc_sol : array(1..24) of real
+    Pg_sol : array(1..24) of real
+    Po_sol : array(1..24) of real
+    Ph_sol : array(1..24) of real
+    Ps_sol : array(1..24) of real
+    Pe_sol : array(1..24) of real
+    vol_sol : array(1..24) of real
+    vert_sol : array(1..24) of real
+    Fl_sol : array(1..24) of real
+    Cmg1_sol : array(1..24) of real
+    Cmg2_sol : array(1..24) of real
+    omega_sol : array(1..24) of real
+    fi_max_sol : array(1..24) of real
+    Pstd_sol : array(1..24) of real
+    Pstc_sol : array(1..24) of real
+    Pste_sol : array(1..24) of real
+    psi_sol : array(1..24) of real
+  end-declarations
+
+  initialisations from 'mmsheet.xlsx:' + 'DespachoERNC_Storage.xlsx' !importacion
+  Dem1 as "noindex;Dem_1"
+  Dem2 as "noindex;Dem_2"
+  afl as "noindex;Afl"
+  PrSol as "noindex;PrSol"
+  PrEol as "noindex;PrEol"
+  end-initialisations
+
+  Objective := sum(t in 1..24) (60*Pc(t) + 100*Pg(t) + 120*Po(t))
+
+  forall(t in 1..24) do !bucle
+  balance1(t):= Pc(t) + Ps(t) + Pe(t) - Fl(t) + Pstd(t) = Dem1(t) + Pstc(t) !integracion sist almacenamiento
+  balance2(t):= Pg(t) + Ph(t) + Po(t) + Fl(t) = Dem2(t)
+  Fmaxlim(t) := Fl(t) <= 1000
+  Pmaxlim_c(t):= Pc(t) <= 1000
+  Pmaxlim_g(t):= Pg(t) <= 500
+  Pmaxlim_o(t):= Po(t) <= 500
+  Pmaxlim_h(t):= Ph(t) <= 800
+  Pmaxlim_s(t):= Ps(t) <= 100 * PrSol(t)
+  Pmaxlim_e(t):= Pe(t) <= 100 * PrEol(t)
+  end-do
+
+  inventario(1) := vol(1) = 0 + afl(1) - Ph(1)/0.5 - vert(1) !hr 1
+  maxi_vol(1) := vol(1) <= 1000
+
+  forall(t in 2..24) do
+  inventario(t) := vol(t) = vol(t-1) + afl(t) - Ph(t)/0.5 - vert(t)
+  maxi_vol(t) := vol(t) <= 1000
+  end-do
+
+  !Restriccion almacenamiento
+  SoC(1) := Pste(1) = 0 + Pstc(1)*0.85 - Pstd(1) !hr1
+
+  forall(t in 2..24) do
+  SoC(t) := Pste(t) = Pste(t-1) + Pstc(t)*0.85 - Pstd(t)
+  end-do
+
+  forall(t in 1..24) do
+  SoCmax(t) := Pste(t) <= 400*12 !Energia máxima por las 12hrs que se puede inyectar
+  Pmaxlim_st(t) := Pstd(t) - Pstc(t) <= 400
+  Pminlim_st(t) := Pstd(t) - Pstc(t) >= -400
+  end-do
+
+  minimise(Objective)
+
+  writeln("Costo Total Sistema: ", getobjval)
+
+  forall(t in 1..24) do
+  Pc_sol(t) := getsol(Pc(t))
+  Pg_sol(t) := getsol(Pg(t))
+  Po_sol(t) := getsol(Po(t))
+  Ph_sol(t) := getsol(Ph(t))
+  Ps_sol(t) := getsol(Ps(t))
+  Pe_sol(t) := getsol(Pe(t))
+  vol_sol(t) := getsol(vol(t))
+  vert_sol(t) := getsol(vert(t))
+  Fl_sol(t) := getsol(Fl(t))
+  Cmg1_sol(t) := getdual(balance1(t))
+  Cmg2_sol(t) := getdual(balance2(t))
+  omega_sol(t) := -1*getdual(inventario(t))
+  fi_max_sol(t) := getdual(Fmaxlim(t))
+  Pstd_sol(t) := getsol(Pstd(t))
+  Pstc_sol(t) := getsol(Pstc(t))
+  Pste_sol(t) := Pste(t).sol !otra forma de escribir getsol()
+  psi_sol(t) := -1*SoC(t).dual !otra forma de escribir getdual()
+  end-do
+
+  initialisations to 'mmsheet.xlsx:' + 'DespachoERNC_Storage.xlsx' !Exportacion
+  Pc_sol as "skiph;grow;noindex;Pc_sol"
+  end-initialisations
+  
+  initialisations to 'mmsheet.xlsx:' + 'DespachoERNC_Storage.xlsx'
+  Pg_sol as "skip;grow;noindex;Pg_sol"
+  Po_sol as "skip;grow;noindex;Po_sol"
+  Ph_sol as "skip;grow;noindex;Ph_sol"
+  Ps_sol as "skip;grow;noindex;Ps_sol"
+  Pe_sol as "skip;grow;noindex;Pe_sol"
+  end-initialisations
+  
+  initialisations to 'mmsheet.xlsx:' + 'DespachoERNC_Storage.xlsx'
+  vol_sol as "skip;grow;noindex;vol_sol"
+  vert_sol as "skip;grow;noindex;vert_sol"
+  Fl_sol as "skip;grow;noindex;Fl_sol"
+  Cmg1_sol as "skip;grow;noindex;CMg1_sol"
+  Cmg2_sol as "skip;grow;noindex;CMg2_sol"
+  omega_sol as "skip;grow;noindex;omega_sol"
+  fi_max_sol as "skip;grow;noindex;fi_max_sol"
+  Pstd_sol as "skip;grow;noindex;Pstd_sol"
+  Pstc_sol as "skip;grow;noindex;Pstc_sol"
+  Pste_sol as "skip;grow;noindex;Pste_sol"
+  psi_sol as "skip;grow;noindex;psi_sol"
+  end-initialisations
+end-model
+

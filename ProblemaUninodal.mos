@@ -1,0 +1,30 @@
+model ProblemaUninodal
+  uses "mmxprs" !gain access to linear solver
+
+!variable declaration
+  declarations
+    Pc, Pg : mpvar !decission variable
+    Dem : real !parameter
+    obj : linctr !FO
+    balance : linctr !balance
+    Pmaxlin_c : linctr
+    Pmaxlin_g : linctr
+  end-declarations
+
+  Dem:= 450
+
+  !FO
+  obj:= 20*Pc + 50*Pg
+
+  !restrictions
+  balance:= Pc + Pg = Dem
+  Pmaxlin_g:= Pc <= 250
+  Pmaxlin_c:= Pg <= 250
+
+  minimize(obj)
+
+  writeln("Valor objetivo: ", getobjval)
+  writeln("Pc= ", getsol(Pc), ", Pg= ", getsol(Pg))
+  writeln("Cmg= ", getdual(balance))
+
+end-model

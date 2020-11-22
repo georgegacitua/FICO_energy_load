@@ -1,0 +1,14 @@
+model DespachoHidrotermico
+  options noimplicit
+  uses "mmxprs", "mmsheet"
+  ! uses "mminsight" ! uncomment this line for an Xpress Insight model
+
+  declarations
+    ! ...
+    Objective:linctr
+  end-declarations
+
+  writeln("Begin running model")
+  !...
+  writeln("End running model")
+end-model

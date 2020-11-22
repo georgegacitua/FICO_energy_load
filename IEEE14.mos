@@ -1,0 +1,112 @@
+model DespachoIEEE14
+  options noimplicit
+  uses "mmxprs","mmsheet"
+  ! uses "mminsight" ! uncomment this line for an Xpress Insight model
+
+  declarations
+    P : array(1..24,1..5) of mpvar
+    Pe : array(1..24,1..1) of mpvar
+    Ps : array(1..24,1..1) of mpvar
+    Fl : array(1..24,1..29) of mpvar
+    delta : array(1..24,1..14) of mpvar
+
+    ng : array(1..5) of integer
+    CV : array(1..5) of real
+    Pmax : array(1..5) of real
+    ne: array(1..1) of integer
+    Pe_max : array(1..1) of real
+    PrEol: array(1..24,1..1) of real
+    ns: array(1..1) of integer
+    Ps_max : array(1..1) of real
+    PrSol: array(1..24,1..1) of real
+    From_n: array(1..20) of integer !20 lineas
+    To_n: array(1..20) of integer
+    xl: array(1..20) of real
+    Fmax: array(1..20) of real
+    D(1..24,1..14) of real
+
+    Objective:linctr
+    balance: array(1..24,1..14) of linctr
+    Pmaxlim: array(1..24,1..5) of linctr
+    Pe_maxlim: array(1..24,1..1) of linctr
+    Ps_maxlim: array(1..24,1..1) of linctr
+    Fmaxlim: array(1..24,1..20) of linctr
+    Fminlim: array(1..24,1..20) of linctr
+    Flujo: array(1..24,1..20) of linctr
+  end-declarations
+
+  initialisations from 'mmsheet.xlsx:' + 'Input_Data_IEEE14.xlsx' !importacion
+  ng as "noindex;ng"
+  CV as "noindex;CV"
+  Pmax as "noindex;Pmax"
+  ne as "noindex;ne"
+  Pe_max as "noindex;Pe_max"
+  ns as "noindex;ns"
+  Ps_max as "noindex;Ps_max"
+  PrEol as "noindex;PrEol"
+  PrSol as "noindex;PrSol"
+  From_n as "noindex;From_n"
+  To_n as "noindex;To_n"
+  xl as "noindex;xl"
+  Fmax as "noindex;Fmax"
+  D as "noindex;D"
+  end-initialisations
+
+  Objective:= sum(t in bl, g in G) (CV(g)*P(t,g))
+
+  forall(t in 1..24) do
+    forall(n in 1..14) do
+    balance(t,n):= sum(g in 1..5 | ng(g) = n) P(t,g) + sum(e in 1..1 | ne(e) = n) Pe(t,e) + sum(s in 1..1 | ns(s) = n) Ps(t,s) +  sum(l in 1..20 | To_n(l) = n) Fl(t,l) - sum(l in 1..20 | From_n(l) = n) Fl(t,l) = D(
+    end-do
+
+    forall(g in 1..5) do
+    Pmaxlim(t,g):= P(t,g) <= Pmax(g)
+    Pminlim(t,g):= P(t,g) >= 0
+    end-do
+
+    forall(e in 1..1) do
+    Pe_maxlim(t,e):= Pe(t,e) <= PrEol(t,e)*Pe_max(e)
+    Pe_minlim(t,e):= Pe(t,e) >= 0
+    end-do
+
+    forall(s in 1..1) do
+    Ps_maxlim(t,s):= Pe(t,s) <= PrSol(t,s)*Ps_max(s)
+    Ps_minlim(t,s):= Pe(t,s) >= 0
+    end-do
+
+    forall(l in 1..20) do
+    Fmaxlim(t,l):=Fl(t,l) <= Fmax(l)
+    Fminlim(t,l):=Fl(t,l) >= -Fmax(l)
+    Fl(t,l) is_free !puede tomar cualquier signo
+    end-do
+
+    forall(l in 1..20) do
+    Flujo(t,l):= Fl(t,l) = (delta(t,From_n(l))-delta(t,To_n(l)))/xl(l)
+    end-do
+
+  end-do
+
+  minimise(Objective)
+
+  forall(t in 1..24) do
+    forall(n in 1..14) do
+    CMg_sol(t,n):= getdual(balance(t,n))
+    end-do
+
+    forall(g in 1..5) do
+    P_sol(t,g):= getsol(P(t,g))
+    end-do
+
+    forall(e in 1..1) do
+    Pe_sol(t,n):= getdual(Pe(t,e))
+    end-do
+
+    forall(s in 1..1) do
+    Ps_sol(t,s):= getdual(balance(t,n))
+    end-do
+  end-do
+
+  writeln("Begin running model")
+  !...
+  writeln("End running model")
+end-model

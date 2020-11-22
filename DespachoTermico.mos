@@ -1,0 +1,47 @@
+model DespachoTermico
+  uses "mmxprs", "mmsheet" !exportar datos a excel
+  ! uses "mminsight" ! uncomment this line for an Xpress Insight model
+
+  declarations
+    Pc, Pg, Po, Fl : array(1..24) of mpvar
+    Dem1, Dem2 : array(1..24) of real
+
+    objective:linctr
+    balance_1: array(1..24) of linctr
+    balance_2: array(1..24) of linctr
+    Fmaxlim: array(1..24) of linctr
+    Pmaxlim_c: array(1..24) of linctr
+    Pmaxlim_g: array(1..24) of linctr
+    Pmaxlim_o: array(1..24) of linctr
+
+    Pc_sol: array(1..24) of real
+    Pg_sol: array(1..24) of real
+    Po_sol: array(1..24) of real
+    Fl_sol: array(1..24) of real
+    CMg1_sol: array(1..24) of real
+    CMg2_sol: array(1..24) of real
+    fi_max_sol: array(1..24) of real
+  end-declarations
+
+  initialisations from "mmsheet.xlsx:" + "DespachoTermico.xlsx"
+  Dem1 as "noindex; Dem_1"
+  Dem2 as "noindex; Dem_2"
+  end-initialisations
+
+  objective:= sum(t in 1..24) (60*Pc(t) + 100*Pg(t) + 120*Po(t))
+
+  forall(t in 1..24) do
+  balance_1(t):= Pc(t) - Fl(t) = Dem1(t)
+  balance_2(t):= Pg(t) + Po(t) + Fl(t) = Dem2(t)
+  Fmaxlim(t):= Fl(t) <= 1000
+  Pmaxlim_c(t):= Pc(t) <= 1000
+  Pmaxlim_g(t):= Pg(t) <= 500
+  Pmaxlim_o(t):= Po(t) <= 500
+  end-do
+
+  minimize(objective)
+
+
+  writeln("Costo Sistema: ", getobjval)
+
+end-model
